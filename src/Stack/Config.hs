@@ -69,6 +69,7 @@ import           Path.IO
 import qualified Paths_stack as Meta
 import           Safe (headMay)
 import           Stack.BuildPlan
+import           Stack.Config.Build
 import           Stack.Config.Docker
 import           Stack.Config.Nix
 import           Stack.Constants
@@ -232,6 +233,7 @@ configFromConfigMonoid configStackRoot configUserConfigPath mresolver mproject c
      configPlatformVariant <- liftIO $
          maybe PlatformVariantNone PlatformVariant <$> lookupEnv platformVariantEnvVar
 
+     let configBuild = buildOptsFromMonoid configMonoidBuildOpts
      configDocker <-
          dockerOptsFromMonoid (fmap fst mproject) configStackRoot mresolver configMonoidDockerOpts
      configNix <- nixOptsFromMonoid (fmap fst mproject) configMonoidNixOpts os
