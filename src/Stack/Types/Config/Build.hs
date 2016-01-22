@@ -6,6 +6,7 @@ module Stack.Types.Config.Build
     (
       BuildOpts(..)
     , defaultBuildOpts
+    , BuildOptsCLI(..)
     , BuildOptsMonoid(..)
     , TestOpts(..)
     , defaultTestOpts
@@ -25,6 +26,8 @@ import           Stack.Types.FlagName
 import           Stack.Types.PackageName
 import           Control.Applicative
 
+-- | Build options that is interpreted by the build command.
+--   This is built up from BuildOptsCLI and BuildOptsMonoid
 data BuildOpts =
   BuildOpts {boptsTargets :: ![Text]
             ,boptsLibProfile :: !Bool
@@ -94,11 +97,21 @@ defaultBuildOpts = BuildOpts
     , boptsCabalVerbose = False
     }
 
--- | An uninterpreted representation of build options.
--- Configurations may be "cascaded" using mappend (left-biased).
+-- | Build options that may only be specified from the CLI
+data BuildOptsCLI = BuildOptsCLI
+    { boptsCLITargets :: ![Text]
+    , boptsCLIDryrun :: !Bool
+    , boptsCLIGhcOptions :: ![Text]
+    , boptsCLIFlags :: !(Map (Maybe PackageName) (Map FlagName Bool))
+    , boptsCLIBuildSubset :: !BuildSubset
+    , boptsCLIFileWatch :: !FileWatchOpts
+    , boptsCLIExec :: ![(String, [String])]
+    , boptsCLIOnlyConfigure :: !Bool
+    } deriving Show
+
+-- | Build options that may be specified in the stack.yaml or from the CLI
 data BuildOptsMonoid = BuildOptsMonoid
-    { -- buildMonoidTargets :: ![Text]
-    buildMonoidLibProfile :: !(Maybe Bool)
+    { buildMonoidLibProfile :: !(Maybe Bool)
     , buildMonoidExeProfile :: !(Maybe Bool)
     , buildMonoidHaddock :: !(Maybe Bool)
     , buildMonoidHaddockDeps :: !(Maybe Bool)
@@ -236,10 +249,10 @@ defaultTestOpts = TestOpts
 
 data TestOptsMonoid =
   TestOptsMonoid
-    {toMonoidRerunTests :: !(Maybe Bool)
-    ,toMonoidAdditionalArgs :: ![String]
-    ,toMonoidCoverage :: !(Maybe Bool)
-    ,toMonoidDisableRun :: !(Maybe Bool)
+    { toMonoidRerunTests :: !(Maybe Bool)
+    , toMonoidAdditionalArgs :: ![String]
+    , toMonoidCoverage :: !(Maybe Bool)
+    , toMonoidDisableRun :: !(Maybe Bool)
     } deriving (Show)
 
 instance FromJSON (TestOptsMonoid, [JSONWarning]) where
@@ -264,23 +277,24 @@ toMonoidDisableRunArgName = "no-run-tests"
 
 instance Monoid TestOptsMonoid where
   mempty = TestOptsMonoid
-    {toMonoidRerunTests = Nothing
-    ,toMonoidAdditionalArgs = []
-    ,toMonoidCoverage = Nothing
-    ,toMonoidDisableRun = Nothing
+    { toMonoidRerunTests = Nothing
+    , toMonoidAdditionalArgs = []
+    , toMonoidCoverage = Nothing
+    , toMonoidDisableRun = Nothing
     }
   mappend l r = TestOptsMonoid
-    {toMonoidRerunTests = toMonoidRerunTests l <|> toMonoidRerunTests r
-    ,toMonoidAdditionalArgs = toMonoidAdditionalArgs l <> toMonoidAdditionalArgs r
-    ,toMonoidCoverage = toMonoidCoverage l <|> toMonoidCoverage r
-    ,toMonoidDisableRun = toMonoidDisableRun l <|> toMonoidDisableRun r
+    { toMonoidRerunTests = toMonoidRerunTests l <|> toMonoidRerunTests r
+    , toMonoidAdditionalArgs = toMonoidAdditionalArgs l <> toMonoidAdditionalArgs r
+    , toMonoidCoverage = toMonoidCoverage l <|> toMonoidCoverage r
+    , toMonoidDisableRun = toMonoidDisableRun l <|> toMonoidDisableRun r
     }
 
 -- | Options for the 'FinalAction' 'DoBenchmarks'
 data BenchmarkOpts =
-  BenchmarkOpts {beoAdditionalArgs :: !(Maybe String) -- ^ Arguments passed to the benchmark program
-                ,beoDisableRun :: !Bool -- ^ Disable running of benchmarks
-                } deriving (Eq,Show)
+  BenchmarkOpts
+    { beoAdditionalArgs :: !(Maybe String) -- ^ Arguments passed to the benchmark program
+    , beoDisableRun :: !Bool -- ^ Disable running of benchmarks
+    } deriving (Eq,Show)
 
 defaultBenchmarkOpts :: BenchmarkOpts
 defaultBenchmarkOpts = BenchmarkOpts
@@ -290,8 +304,8 @@ defaultBenchmarkOpts = BenchmarkOpts
 
 data BenchmarkOptsMonoid =
   BenchmarkOptsMonoid
-     {beoMonoidAdditionalArgs :: !(Maybe String)
-     ,beoMonoidDisableRun :: !(Maybe Bool)
+     { beoMonoidAdditionalArgs :: !(Maybe String)
+     , beoMonoidDisableRun :: !(Maybe Bool)
      } deriving (Show)
 
 instance FromJSON (BenchmarkOptsMonoid, [JSONWarning]) where
@@ -308,11 +322,11 @@ beoMonoidDisableRunArgName = "no-run-benchmarks"
 
 instance Monoid BenchmarkOptsMonoid where
   mempty = BenchmarkOptsMonoid
-    {beoMonoidAdditionalArgs = Nothing
-    ,beoMonoidDisableRun = Nothing}
+    { beoMonoidAdditionalArgs = Nothing
+    , beoMonoidDisableRun = Nothing}
   mappend l r = BenchmarkOptsMonoid
-    {beoMonoidAdditionalArgs = beoMonoidAdditionalArgs l <|> beoMonoidAdditionalArgs r
-    ,beoMonoidDisableRun = beoMonoidDisableRun l <|> beoMonoidDisableRun r}
+    { beoMonoidAdditionalArgs = beoMonoidAdditionalArgs l <|> beoMonoidAdditionalArgs r
+    , beoMonoidDisableRun = beoMonoidDisableRun l <|> beoMonoidDisableRun r}
 
 data FileWatchOpts
   = NoFileWatch
