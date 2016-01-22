@@ -244,26 +244,26 @@ figureOutMainFile bopts mainIsTargets targets0 packages =
 -- information to load that package/components.
 ghciSetup
     :: (HasConfig r, HasHttpManager r, HasBuildConfig r, MonadMask m, HasTerminal r, HasLogLevel r, HasEnvConfig r, MonadReader r m, MonadIO m, MonadThrow m, MonadLogger m, MonadCatch m, MonadBaseControl IO m)
-    => BuildOpts
+    => BuildOptsCLI
     -> Bool
     -> Bool
     -> Maybe Text
     -> [String]
     -> m (Map PackageName SimpleTarget, Maybe (Map PackageName SimpleTarget), [GhciPkgInfo])
-ghciSetup bopts0 noBuild skipIntermediate mainIs additionalPackages = do
-    (_,_,targets) <- parseTargetsFromBuildOpts AllowNoTargets bopts0
+ghciSetup boptsCli0 noBuild skipIntermediate mainIs additionalPackages = do
+    (_,_,targets) <- parseTargetsFromBuildOpts AllowNoTargets boptsCli0
     mainIsTargets <-
         case mainIs of
             Nothing -> return Nothing
             Just target -> do
-                (_,_,targets') <- parseTargetsFromBuildOpts AllowNoTargets bopts0 { boptsTargets = [target] }
+                (_,_,targets') <- parseTargetsFromBuildOpts AllowNoTargets boptsCli0 { boptsCLITargets = [target] }
                 return (Just targets')
     addPkgs <- forM additionalPackages $ \name -> do
         let mres = (packageIdentifierName <$> parsePackageIdentifierFromString name)
                 <|> parsePackageNameFromString name
         maybe (fail $ "Failed to parse --package option " ++ name) return mres
-    let bopts = bopts0
-            { boptsTargets = boptsTargets bopts0 ++ map T.pack additionalPackages
+    let bopts = boptsCli0
+            { boptsCLITargets = boptsCLITargets boptsCli0 ++ map T.pack additionalPackages
             }
     econfig <- asks getEnvConfig
     (realTargets,_,_,_,sourceMap) <- loadSourceMap AllowNoTargets bopts
@@ -324,7 +324,7 @@ ghciSetup bopts0 noBuild skipIntermediate mainIs additionalPackages = do
 -- | Make information necessary to load the given package in GHCi.
 makeGhciPkgInfo
     :: (MonadReader r m, HasEnvConfig r, MonadLogger m, MonadIO m, MonadCatch m)
-    => BuildOpts
+    => BuildOptsCLI
     -> SourceMap
     -> InstalledMap
     -> [PackageName]
@@ -333,14 +333,14 @@ makeGhciPkgInfo
     -> Path Abs File
     -> SimpleTarget
     -> m GhciPkgInfo
-makeGhciPkgInfo bopts sourceMap installedMap locals addPkgs name cabalfp target = do
+makeGhciPkgInfo boptsCli sourceMap installedMap locals addPkgs name cabalfp target = do
     econfig <- asks getEnvConfig
     bconfig <- asks getBuildConfig
     let config =
             PackageConfig
             { packageConfigEnableTests = True
             , packageConfigEnableBenchmarks = True
-            , packageConfigFlags = localFlags (boptsFlags bopts) bconfig name
+            , packageConfigFlags = localFlags (boptsCLIFlags boptsCli) bconfig name
             , packageConfigCompilerVersion = envConfigCompilerVersion econfig
             , packageConfigPlatform = configPlatform (getConfig bconfig)
             }
@@ -349,7 +349,7 @@ makeGhciPkgInfo bopts sourceMap installedMap locals addPkgs name cabalfp target 
     (mods,files,opts) <- getPackageOpts (packageOpts pkg) sourceMap installedMap locals addPkgs cabalfp
     let filteredOpts = filterWanted opts
         filterWanted = M.filterWithKey (\k _ -> k `S.member` allWanted)
-        allWanted = wantedPackageComponents bopts target pkg
+        allWanted = wantedPackageComponents boptsCli target pkg
         setMapMaybe f = S.fromList . mapMaybe f . S.toList
     return
         GhciPkgInfo

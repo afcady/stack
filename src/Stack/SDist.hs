@@ -123,7 +123,7 @@ getCabalLbs :: M env m => PvpBounds -> FilePath -> m L.ByteString
 getCabalLbs pvpBounds fp = do
     bs <- liftIO $ S.readFile fp
     (_warnings, gpd) <- readPackageUnresolvedBS Nothing bs
-    (_, _, _, _, sourceMap) <- loadSourceMap AllowNoTargets defaultBuildOpts
+    (_, _, _, _, sourceMap) <- loadSourceMap AllowNoTargets defaultBuildOptsCLI
     menv <- getMinimalEnvOverride
     (installedMap, _, _, _) <- getInstalled menv GetInstalledOpts
                                 { getInstalledProfiling = False
@@ -178,7 +178,7 @@ readLocalPackage :: M env m => Path Abs Dir -> m LocalPackage
 readLocalPackage pkgDir = do
     cabalfp <- getCabalFileName pkgDir
     name    <- parsePackageNameFromFilePath cabalfp
-    config  <- getPackageConfig defaultBuildOpts name
+    config  <- getPackageConfig defaultBuildOptsCLI name
     (warnings,package) <- readPackage config cabalfp
     mapM_ (printCabalFileWarning cabalfp) warnings
     return LocalPackage
@@ -204,10 +204,11 @@ getSDistFileList lp =
     withCanonicalizedSystemTempDirectory (stackProgName <> "-sdist") $ \tmpdir -> do
         menv <- getMinimalEnvOverride
         let bopts = defaultBuildOpts
-        baseConfigOpts <- mkBaseConfigOpts bopts
-        (_, _mbp, locals, _extraToBuild, _sourceMap) <- loadSourceMap NeedTargets bopts
+        let boptsCli = defaultBuildOptsCLI
+        baseConfigOpts <- mkBaseConfigOpts boptsCli
+        (_, _mbp, locals, _extraToBuild, _sourceMap) <- loadSourceMap NeedTargets boptsCli
         runInBase <- liftBaseWith $ \run -> return (void . run)
-        withExecuteEnv menv bopts baseConfigOpts locals
+        withExecuteEnv menv bopts boptsCli baseConfigOpts locals
             [] [] [] -- provide empty list of globals. This is a hack around custom Setup.hs files
             $ \ee ->
             withSingleContext runInBase ac ee task Nothing (Just "sdist") $ \_package cabalfp _pkgDir cabal _announce _console _mlogFile -> do
@@ -271,7 +272,7 @@ checkSDistTarball tarball = withTempTarGzContents tarball $ \pkgDir' -> do
     --               ^ drop ".tar"     ^ drop ".gz"
     cabalfp <- getCabalFileName pkgDir
     name    <- parsePackageNameFromFilePath cabalfp
-    config  <- getPackageConfig defaultBuildOpts name
+    config  <- getPackageConfig defaultBuildOptsCLI name
     (gdesc, pkgDesc) <- readPackageDescriptionDir config pkgDir
     $logInfo $
         "Checking package '" <> packageNameText name <> "' for common mistakes"

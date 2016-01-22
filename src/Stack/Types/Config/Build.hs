@@ -6,6 +6,7 @@ module Stack.Types.Config.Build
     (
       BuildOpts(..)
     , defaultBuildOpts
+    , defaultBuildOptsCLI
     , BuildOptsCLI(..)
     , BuildOptsMonoid(..)
     , TestOpts(..)
@@ -19,6 +20,7 @@ module Stack.Types.Config.Build
 
 import           Data.Aeson.Extended
 import           Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import           Data.Monoid
 import           Data.Text (Text)
 import           Stack.Types.FlagName
@@ -79,6 +81,17 @@ defaultBuildOpts = BuildOpts
     , boptsReconfigure = False
     , boptsCabalVerbose = False
     }
+
+defaultBuildOptsCLI ::BuildOptsCLI
+defaultBuildOptsCLI = BuildOptsCLI
+    { boptsCLITargets = []
+    , boptsCLIDryrun = False
+    , boptsCLIFlags = Map.empty
+    , boptsCLIGhcOptions = []
+    , boptsCLIBuildSubset = BSAll
+    , boptsCLIFileWatch = NoFileWatch
+    , boptsCLIExec = []
+    , boptsCLIOnlyConfigure = False}
 
 -- | Build options that may only be specified from the CLI
 data BuildOptsCLI = BuildOptsCLI

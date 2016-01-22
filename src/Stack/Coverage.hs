@@ -221,15 +221,8 @@ generateHpcReportForTargets opts = do
              (_,_,targets) <- parseTargetsFromBuildOpts
                  AllowNoTargets
              -- FIXME: Add a default buildoptsCLI
-                 (BuildOptsCLI
-                    { boptsCLITargets = if hroptsAll opts then [] else targetNames
-                    , boptsCLIDryrun = False
-                    , boptsCLIFlags = Map.empty
-                    , boptsCLIGhcOptions = []
-                    , boptsCLIBuildSubset = BSAll
-                    , boptsCLIFileWatch = NoFileWatch
-                    , boptsCLIExec = []
-                    , boptsCLIOnlyConfigure = False})
+                 defaultBuildOptsCLI
+                    { boptsCLITargets = if hroptsAll opts then [] else targetNames }
              liftM concat $ forM (Map.toList targets) $ \(name, target) ->
                  case target of
                      STUnknown -> fail $
