@@ -75,9 +75,11 @@ type M env m = (MonadIO m,MonadReader env m,HasHttpManager env,HasBuildConfig en
 build :: M env m
       => (Set (Path Abs File) -> IO ()) -- ^ callback after discovering all local files
       -> Maybe FileLock
-      -> BuildOpts
+      -> BuildOptsCLI
       -> m ()
-build setLocalFiles mbuildLk bopts = fixCodePage $ do
+build setLocalFiles mbuildLk boptsCli = fixCodePage $ do
+    bopts <- asks (configBuild . getConfig)
+    let profiling = boptsLibProfile bopts || boptsExeProfile bopts
     menv <- getMinimalEnvOverride
 
     (_, mbp, locals, extraToBuild, sourceMap) <- loadSourceMap NeedTargets bopts
@@ -115,7 +117,7 @@ build setLocalFiles mbuildLk bopts = fixCodePage $ do
     when (boptsPreFetch bopts) $
         preFetch plan
 
-    if boptsDryrun bopts
+    if boptsCLIDryrun bopts
         then printPlan plan
         else executePlan menv bopts baseConfigOpts locals
                          globalDumpPkgs
@@ -123,8 +125,6 @@ build setLocalFiles mbuildLk bopts = fixCodePage $ do
                          localDumpPkgs
                          installedMap
                          plan
-  where
-    profiling = boptsLibProfile bopts || boptsExeProfile bopts
 
 -- | If all the tasks are local, they don't mutate anything outside of our local directory.
 allLocal :: Plan -> Bool

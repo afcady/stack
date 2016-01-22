@@ -18,7 +18,6 @@ module Stack.Types.Config.Build
     where
 
 import           Data.Aeson.Extended
-import qualified Data.Map as Map
 import           Data.Map.Strict (Map)
 import           Data.Monoid
 import           Data.Text (Text)
@@ -29,22 +28,16 @@ import           Control.Applicative
 -- | Build options that is interpreted by the build command.
 --   This is built up from BuildOptsCLI and BuildOptsMonoid
 data BuildOpts =
-  BuildOpts {boptsTargets :: ![Text]
-            ,boptsLibProfile :: !Bool
+  BuildOpts {boptsLibProfile :: !Bool
             ,boptsExeProfile :: !Bool
             ,boptsHaddock :: !Bool
             -- ^ Build haddocks?
             ,boptsHaddockDeps :: !(Maybe Bool)
             -- ^ Build haddocks for dependencies?
-            ,boptsDryrun :: !Bool
-            ,boptsGhcOptions :: ![Text]
-            ,boptsFlags :: !(Map (Maybe PackageName) (Map FlagName Bool))
             ,boptsInstallExes :: !Bool
             -- ^ Install executables to user path after building?
             ,boptsPreFetch :: !Bool
             -- ^ Fetch all packages immediately
-            ,boptsBuildSubset :: !BuildSubset
-            ,boptsFileWatch :: !FileWatchOpts
             -- ^ Watch files for changes and automatically rebuild
             ,boptsKeepGoing :: !(Maybe Bool)
             -- ^ Keep building/running after failure
@@ -60,9 +53,7 @@ data BuildOpts =
             -- ^ Turn on benchmarks for local targets
             ,boptsBenchmarkOpts :: !BenchmarkOpts
             -- ^ Additional test arguments
-            ,boptsExec :: ![(String, [String])]
             -- ^ Commands (with arguments) to run after a successful build
-            ,boptsOnlyConfigure :: !Bool
             -- ^ Only perform the configure step when building
             ,boptsReconfigure :: !Bool
             -- ^ Perform the configure step even if already configured
@@ -73,26 +64,18 @@ data BuildOpts =
 
 defaultBuildOpts :: BuildOpts
 defaultBuildOpts = BuildOpts
-    { boptsTargets = []
-    , boptsLibProfile = False
+    { boptsLibProfile = False
     , boptsExeProfile = False
     , boptsHaddock = False
     , boptsHaddockDeps = Nothing
-    , boptsDryrun = False
-    , boptsGhcOptions = []
-    , boptsFlags = Map.empty
     , boptsInstallExes = False
     , boptsPreFetch = False
-    , boptsBuildSubset = BSAll
-    , boptsFileWatch = NoFileWatch
     , boptsKeepGoing = Nothing
     , boptsForceDirty = False
     , boptsTests = False
     , boptsTestOpts = defaultTestOpts
     , boptsBenchmarks = False
     , boptsBenchmarkOpts = defaultBenchmarkOpts
-    , boptsExec = []
-    , boptsOnlyConfigure = False
     , boptsReconfigure = False
     , boptsCabalVerbose = False
     }

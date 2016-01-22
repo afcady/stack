@@ -508,6 +508,7 @@ data BaseConfigOpts = BaseConfigOpts
     , bcoSnapInstallRoot :: !(Path Abs Dir)
     , bcoLocalInstallRoot :: !(Path Abs Dir)
     , bcoBuildOpts :: !BuildOpts
+    , bcoBuildOptsCLI :: !BuildOptsCLI
     , bcoExtraDBs :: ![(Path Abs Dir)]
     }
 
@@ -586,6 +587,7 @@ configureOptsNoDir econfig bco deps wanted isLocal package = concat
   where
     config = getConfig econfig
     bopts = bcoBuildOpts bco
+    boptsCli = bcoBuildOptsCLI bco
 
     depOptions = map (uncurry toDepOption) $ Map.toList deps
       where
@@ -615,7 +617,7 @@ configureOptsNoDir econfig bco deps wanted isLocal package = concat
         , Map.findWithDefault [] (Just $ packageName package) (configGhcOptions config)
         , concat [["-fhpc"] | isLocal && toCoverage (boptsTestOpts bopts)]
         , if includeExtraOptions
-            then boptsGhcOptions bopts
+            then boptsCLIGhcOptions boptsCli
             else []
         ]
 
