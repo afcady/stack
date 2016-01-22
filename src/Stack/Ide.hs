@@ -44,11 +44,11 @@ ide
     -> [String] -- ^ GHC options.
     -> m ()
 ide targets useropts = do
-    let bopts = defaultBuildOpts
-            { boptsTargets = targets
-            , boptsBuildSubset = BSOnlyDependencies
+    let boptsCli = defaultBuildOptsCLI
+            { boptsCLITargets = targets
+            , boptsCLIBuildSubset = BSOnlyDependencies
             }
-    (_realTargets,_,pkgs) <- ghciSetup bopts False False Nothing []
+    (_realTargets,_,pkgs) <- ghciSetup boptsCli False False Nothing []
     pwd <- getWorkingDir
     (pkgopts,_srcfiles) <-
         liftM mconcat $ forM pkgs $ getPackageOptsAndTargetFiles pwd

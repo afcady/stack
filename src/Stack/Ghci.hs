@@ -69,7 +69,7 @@ data GhciOpts = GhciOpts
     , ghciMainIs             :: !(Maybe Text)
     , ghciSkipIntermediate   :: !Bool
     , ghciHidePackages       :: !Bool
-    , ghciBuildOpts          :: !BuildOpts
+    , ghciBuildOptsCLI       :: !BuildOptsCLI
     } deriving Show
 
 -- | Necessary information to load a package or its components.
@@ -91,11 +91,13 @@ ghci
     :: (HasConfig r, HasBuildConfig r, HasHttpManager r, MonadMask m, HasLogLevel r, HasTerminal r, HasEnvConfig r, MonadReader r m, MonadIO m, MonadThrow m, MonadLogger m, MonadCatch m, MonadBaseControl IO m)
     => GhciOpts -> m ()
 ghci GhciOpts{..} = do
-    let bopts = ghciBuildOpts
-            { boptsTestOpts = (boptsTestOpts ghciBuildOpts) { toDisableRun = True }
-            , boptsBenchmarkOpts = (boptsBenchmarkOpts ghciBuildOpts) { beoDisableRun = True }
-            }
-    (targets,mainIsTargets,pkgs) <- ghciSetup bopts ghciNoBuild ghciSkipIntermediate ghciMainIs ghciAdditionalPackages
+    bopts <- asks (configBuild . getConfig)
+    let boptsLocal = bopts
+               { boptsTestOpts = (boptsTestOpts bopts) { toDisableRun = True }
+               , boptsBenchmarkOpts = (boptsBenchmarkOpts bopts) { beoDisableRun = True }
+               }
+    -- Fixme use local environment
+    (targets,mainIsTargets,pkgs) <- ghciSetup ghciBuildOptsCLI ghciNoBuild ghciSkipIntermediate ghciMainIs ghciAdditionalPackages
     config <- asks getConfig
     bconfig <- asks getBuildConfig
     wc <- getWhichCompiler
@@ -251,6 +253,7 @@ ghciSetup
     -> [String]
     -> m (Map PackageName SimpleTarget, Maybe (Map PackageName SimpleTarget), [GhciPkgInfo])
 ghciSetup boptsCli0 noBuild skipIntermediate mainIs additionalPackages = do
+    bopts <- asks (configBuild . getConfig)
     (_,_,targets) <- parseTargetsFromBuildOpts AllowNoTargets boptsCli0
     mainIsTargets <-
         case mainIs of
@@ -262,11 +265,11 @@ ghciSetup boptsCli0 noBuild skipIntermediate mainIs additionalPackages = do
         let mres = (packageIdentifierName <$> parsePackageIdentifierFromString name)
                 <|> parsePackageNameFromString name
         maybe (fail $ "Failed to parse --package option " ++ name) return mres
-    let bopts = boptsCli0
+    let boptsCli = boptsCli0
             { boptsCLITargets = boptsCLITargets boptsCli0 ++ map T.pack additionalPackages
             }
     econfig <- asks getEnvConfig
-    (realTargets,_,_,_,sourceMap) <- loadSourceMap AllowNoTargets bopts
+    (realTargets,_,_,_,sourceMap) <- loadSourceMap AllowNoTargets boptsCli
     menv <- getMinimalEnvOverride
     (installedMap, _, _, _) <- getInstalled
         menv
@@ -300,7 +303,7 @@ ghciSetup boptsCli0 noBuild skipIntermediate mainIs additionalPackages = do
                 return (directlyWanted ++ intermediateDeps)
     -- Try to build, but optimistically launch GHCi anyway if it fails (#1065)
     unless noBuild $ do
-        eres <- tryAny $ build (const (return ())) Nothing bopts
+        eres <- tryAny $ build (const (return ())) Nothing boptsCli
         case eres of
             Right () -> return ()
             Left err -> do
@@ -311,7 +314,7 @@ ghciSetup boptsCli0 noBuild skipIntermediate mainIs additionalPackages = do
     infos <-
         forM wanted $
         \(name,(cabalfp,target)) ->
-             makeGhciPkgInfo bopts sourceMap installedMap localLibs addPkgs name cabalfp target
+             makeGhciPkgInfo boptsCli sourceMap installedMap localLibs addPkgs name cabalfp target
     checkForIssues infos
     return (realTargets, mainIsTargets, infos)
   where
@@ -334,6 +337,8 @@ makeGhciPkgInfo
     -> SimpleTarget
     -> m GhciPkgInfo
 makeGhciPkgInfo boptsCli sourceMap installedMap locals addPkgs name cabalfp target = do
+    -- FIXME make sure this is overridden above
+    bopts <- asks (configBuild . getConfig)
     econfig <- asks getEnvConfig
     bconfig <- asks getBuildConfig
     let config =
@@ -349,7 +354,7 @@ makeGhciPkgInfo boptsCli sourceMap installedMap locals addPkgs name cabalfp targ
     (mods,files,opts) <- getPackageOpts (packageOpts pkg) sourceMap installedMap locals addPkgs cabalfp
     let filteredOpts = filterWanted opts
         filterWanted = M.filterWithKey (\k _ -> k `S.member` allWanted)
-        allWanted = wantedPackageComponents boptsCli target pkg
+        allWanted = wantedPackageComponents bopts target pkg
         setMapMaybe f = S.fromList . mapMaybe f . S.toList
     return
         GhciPkgInfo

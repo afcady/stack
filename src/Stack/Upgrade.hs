@@ -102,7 +102,8 @@ upgrade gitRepo mresolver builtHash =
             "Try rerunning with --install-ghc to install the correct GHC into " <>
             T.pack (toFilePath (configLocalPrograms config))
         runInnerStackT envConfig1 $
-            build (const $ return ()) Nothing defaultBuildOpts
-                { boptsTargets = ["stack"]
-                , boptsInstallExes = True
+            build (const $ return ()) Nothing defaultBuildOptsCLI
+                { boptsCLITargets = ["stack"]
+                -- FIXME local override of buildopts
+                -- , boptsCLIInstallExes = True
                 }

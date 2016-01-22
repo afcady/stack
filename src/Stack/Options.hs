@@ -292,7 +292,8 @@ buildOptsMonoidParser hide0 = undefined
                   | tracing || profiling =
                       opts {boptsLibProfile = True
                            ,boptsExeProfile = True
-                           ,boptsGhcOptions = ["-auto-all","-caf-all"]
+                           -- FIXME configure CLI options
+                           -- ,boptsGhcOptions = ["-auto-all","-caf-all"]
                            ,boptsBenchmarkOpts =
                                 bopts {beoAdditionalArgs =
                                            beoAdditionalArgs bopts <>

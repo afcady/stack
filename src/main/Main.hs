@@ -874,14 +874,14 @@ cleanCmd :: CleanOpts -> GlobalOpts -> IO ()
 cleanCmd opts go = withBuildConfigAndLock go (const (clean opts))
 
 -- | Helper for build and install commands
-buildCmd :: BuildOpts -> GlobalOpts -> IO ()
+buildCmd :: BuildOptsCLI -> GlobalOpts -> IO ()
 buildCmd opts go = do
-  when (any (("-prof" `elem`) . either (const []) id . parseArgs Escaping) (boptsGhcOptions opts)) $ do
+  when (any (("-prof" `elem`) . either (const []) id . parseArgs Escaping) (boptsCLIGhcOptions opts)) $ do
     hPutStrLn stderr "When building with stack, you should not use the -prof GHC option"
     hPutStrLn stderr "Instead, please use --library-profiling and --executable-profiling"
     hPutStrLn stderr "See: https://github.com/commercialhaskell/stack/issues/1015"
     error "-prof GHC option submitted"
-  case boptsFileWatch opts of
+  case boptsCLIFileWatch opts of
     FileWatchPoll -> fileWatchPoll stderr inner
     FileWatch -> fileWatch stderr inner
     NoFileWatch -> inner $ const $ return ()
@@ -1024,8 +1024,8 @@ execCmd ExecOpts {..} go@GlobalOpts{..} =
                    (ExecRunGhc, args) -> execCompiler "run" args
                let targets = concatMap words eoPackages
                unless (null targets) $
-                   Stack.Build.build (const $ return ()) lk defaultBuildOpts
-                       { boptsTargets = map T.pack targets
+                   Stack.Build.build (const $ return ()) lk defaultBuildOptsCLI
+                       { boptsCLITargets = map T.pack targets
                        }
                munlockFile lk -- Unlock before transferring control away.
                menv <- liftIO $ configEnvOverride config eoEnvSettings
@@ -1075,7 +1075,7 @@ packagesCmd () go@GlobalOpts{..} =
 targetsCmd :: Text -> GlobalOpts -> IO ()
 targetsCmd target go@GlobalOpts{..} =
     withBuildConfig go $
-    do let bopts = defaultBuildOpts { boptsTargets = [target] }
+    do let bopts = defaultBuildOptsCLI { boptsCLITargets = [target] }
        (_realTargets,_,pkgs) <- ghciSetup bopts False False Nothing []
        pwd <- getWorkingDir
        targets <-
@@ -1130,7 +1130,7 @@ imgDockerCmd rebuild go@GlobalOpts{..} =
               do when rebuild $ Stack.Build.build
                          (const (return ()))
                          lk
-                         defaultBuildOpts
+                         defaultBuildOptsCLI
                  Image.stageContainerImageArtifacts)
         (Just Image.createContainerImageFromStage)
 

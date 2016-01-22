@@ -872,7 +872,8 @@ installGHCJS si archiveFile archiveType destDir = do
 
     $logSticky "Installing GHCJS (this will take a long time) ..."
     runInnerStackT envConfig $
-        build (\_ -> return ()) Nothing defaultBuildOpts { boptsInstallExes = True }
+        -- FIXME change install exes on local env override
+        build (\_ -> return ()) Nothing defaultBuildOptsCLI -- { boptsInstallExes = True }
     -- Copy over *.options files needed on windows.
     forM_ mwindowsInstallDir $ \dir -> do
         (_, files) <- listDirectory (dir </> $(mkRelDir "bin"))
@@ -961,7 +962,7 @@ bootGhcjs stackYaml destDir = do
         runInnerStackT envConfig $
             build (\_ -> return ())
                   Nothing
-                  defaultBuildOpts { boptsTargets = ["cabal-install"] }
+                  defaultBuildOptsCLI { boptsCLITargets = ["cabal-install"] }
     $logSticky "Booting GHCJS (this will take a long time) ..."
     let envSettings = defaultEnvSettings { esIncludeGhcPackagePath = False }
     menv' <- liftIO $ configEnvOverride (getConfig envConfig) envSettings
