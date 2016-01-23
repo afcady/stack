@@ -28,7 +28,7 @@ import           Control.Monad (liftM, when, join, void, unless)
 import           Control.Monad.Catch
 import           Control.Monad.IO.Class (MonadIO, liftIO)
 import           Control.Monad.Logger
-import           Control.Monad.Reader (MonadReader, ReaderT (..), asks)
+import           Control.Monad.Reader (MonadReader, ReaderT (..), asks, local)
 import           Control.Monad.State (get, put, modify)
 import           Control.Monad.Trans.Control
 import "cryptohash" Crypto.Hash (SHA1(SHA1))
@@ -80,7 +80,7 @@ import           Stack.Fetch
 import           Stack.GhcPkg (createDatabase, getCabalPkgVer, getGlobalDB, mkGhcPackagePath)
 import           Stack.Setup.Installed
 import           Stack.Types
-import           Stack.Types.Internal (HasTerminal, HasReExec, HasLogLevel)
+import           Stack.Types.Internal (Env(..), HasTerminal, HasReExec, HasLogLevel)
 import           Stack.Types.StackT
 import qualified System.Directory as D
 import           System.Environment (getExecutablePath)
@@ -860,20 +860,33 @@ installGHCJS si archiveFile archiveType destDir = do
     let stackYaml = unpackDir </> $(mkRelFile "stack.yaml")
         destBinDir = destDir </> $(mkRelDir "bin")
     createTree destBinDir
-    envConfig <- loadGhcjsEnvConfig stackYaml destBinDir
+    envConfig' <- loadGhcjsEnvConfig stackYaml destBinDir
 
     -- On windows we need to copy options files out of the install dir.  Argh!
     -- This is done before the build, so that if it fails, things fail
     -- earlier.
     mwindowsInstallDir <- case platform of
         Platform _ Cabal.Windows ->
-            liftM Just $ runInnerStackT envConfig installationRootLocal
+            liftM Just $ runInnerStackT envConfig' installationRootLocal
         _ -> return Nothing
 
     $logSticky "Installing GHCJS (this will take a long time) ..."
-    runInnerStackT envConfig $
-        -- FIXME change install exes on local env override
-        build (\_ -> return ()) Nothing defaultBuildOptsCLI -- { boptsInstallExes = True }
+    runInnerStackT envConfig' $
+        local
+            (\env ->
+                  env
+                  { envConfig = (envConfig env)
+                    { envConfigBuildConfig = (envConfigBuildConfig
+                                                  (envConfig env))
+                      { bcConfig = (bcConfig
+                                        (envConfigBuildConfig
+                                             (envConfig env)))
+                        { configBuild = (configBuild
+                                             (bcConfig
+                                                  (envConfigBuildConfig
+                                                       (envConfig env))))
+                          { boptsInstallExes = True}}}}})
+            (build (\_ -> return ()) Nothing defaultBuildOptsCLI)
     -- Copy over *.options files needed on windows.
     forM_ mwindowsInstallDir $ \dir -> do
         (_, files) <- listDirectory (dir </> $(mkRelDir "bin"))
