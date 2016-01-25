@@ -16,7 +16,7 @@ import qualified Control.Exception.Lifted as EL
 import           Control.Monad hiding (mapM, forM)
 import           Control.Monad.IO.Class
 import           Control.Monad.Logger
-import           Control.Monad.Reader (ask, asks, runReaderT)
+import           Control.Monad.Reader (ask, asks,local,runReaderT)
 import           Control.Monad.Trans.Control (MonadBaseControl)
 import           Data.Attoparsec.Args (parseArgs, EscapingMode (Escaping))
 import           Data.Attoparsec.Interpreter (getInterpreterArgs)
@@ -41,6 +41,7 @@ import           Development.GitRev (gitCommitCount, gitHash)
 import           Distribution.System (buildArch, buildPlatform)
 import           Distribution.Text (display)
 import           GHC.IO.Encoding (mkTextEncoding, textEncodingName)
+import           Lens.Micro
 import           Network.HTTP.Client
 import           Options.Applicative
 import           Options.Applicative.Args
@@ -534,7 +535,7 @@ pathCmd keys go =
             -- So it's not the *minimal* override path.
             menv <- getMinimalEnvOverride
             snap <- packageDatabaseDeps
-            local <- packageDatabaseLocal
+            plocal <- packageDatabaseLocal
             extra <- packageDatabaseExtra
             global <- getGlobalDB menv =<< getWhichCompiler
             snaproot <- installationRootDeps
@@ -560,7 +561,7 @@ pathCmd keys go =
                                     bc
                                     menv
                                     snap
-                                    local
+                                    plocal
                                     global
                                     snaproot
                                     localroot
@@ -1051,7 +1052,14 @@ ghciCmd :: GhciOpts -> GlobalOpts -> IO ()
 ghciCmd ghciOpts go@GlobalOpts{..} =
   withBuildConfigAndLock go $ \lk -> do
     munlockFile lk -- Don't hold the lock while in the GHCI.
-    ghci ghciOpts
+    bopts <- asks (configBuild . getConfig)
+    -- override env so running of tests and benchmarks is disabled
+    let boptsLocal = bopts
+               { boptsTestOpts = (boptsTestOpts bopts) { toDisableRun = True }
+               , boptsBenchmarkOpts = (boptsBenchmarkOpts bopts) { beoDisableRun = True }
+               }
+    local (set (envEnvConfig.envConfigBuildOpts) boptsLocal)
+          (ghci ghciOpts)
 
 -- | Run ide-backend in the context of a project.
 ideCmd :: ([Text], [String]) -> GlobalOpts -> IO ()

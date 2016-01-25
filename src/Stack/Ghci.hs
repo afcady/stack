@@ -92,11 +92,6 @@ ghci
     => GhciOpts -> m ()
 ghci GhciOpts{..} = do
     bopts <- asks (configBuild . getConfig)
-    let boptsLocal = bopts
-               { boptsTestOpts = (boptsTestOpts bopts) { toDisableRun = True }
-               , boptsBenchmarkOpts = (boptsBenchmarkOpts bopts) { beoDisableRun = True }
-               }
-    -- Fixme use local environment
     (targets,mainIsTargets,pkgs) <- ghciSetup ghciBuildOptsCLI ghciNoBuild ghciSkipIntermediate ghciMainIs ghciAdditionalPackages
     config <- asks getConfig
     bconfig <- asks getBuildConfig
@@ -337,7 +332,6 @@ makeGhciPkgInfo
     -> SimpleTarget
     -> m GhciPkgInfo
 makeGhciPkgInfo boptsCli sourceMap installedMap locals addPkgs name cabalfp target = do
-    -- FIXME make sure this is overridden above
     bopts <- asks (configBuild . getConfig)
     econfig <- asks getEnvConfig
     bconfig <- asks getBuildConfig

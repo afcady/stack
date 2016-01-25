@@ -217,10 +217,8 @@ generateHpcReportForTargets opts = do
          else do
              when (hroptsAll opts && not (null targetNames)) $
                  $logWarn $ "Since --all is used, it is redundant to specify these targets: " <> T.pack (show targetNames)
-             -- FIXEME: Add local default build opts environment
              (_,_,targets) <- parseTargetsFromBuildOpts
                  AllowNoTargets
-             -- FIXME: Add a default buildoptsCLI
                  defaultBuildOptsCLI
                     { boptsCLITargets = if hroptsAll opts then [] else targetNames }
              liftM concat $ forM (Map.toList targets) $ \(name, target) ->

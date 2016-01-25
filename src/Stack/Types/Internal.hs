@@ -1,3 +1,6 @@
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+
 -- | Internal types to the library.
 
 module Stack.Types.Internal where
@@ -5,6 +8,7 @@ module Stack.Types.Internal where
 import Control.Concurrent.MVar
 import Control.Monad.Logger (LogLevel)
 import Data.Text (Text)
+import Lens.Micro
 import Network.HTTP.Client.Conduit (Manager,HasHttpManager(..))
 import Stack.Types.Config
 
@@ -71,3 +75,21 @@ class HasSticky r where
 
 instance HasSticky (Env config) where
   getSticky = envSticky
+
+envEnvConfig :: Lens' (Env EnvConfig) EnvConfig
+envEnvConfig = lens (envConfig)
+                    (\s t -> s {envConfig = t})
+
+buildOptsInstallExes :: Lens' BuildOpts Bool
+buildOptsInstallExes = lens (boptsInstallExes)
+                            (\bopts t -> bopts {boptsInstallExes = t})
+
+envConfigBuildOpts :: Lens' EnvConfig BuildOpts
+envConfigBuildOpts = lens
+                   (\envCfg -> configBuild (bcConfig (envConfigBuildConfig envCfg)))
+                   (\envCfg bopts  -> envCfg
+                                    { envConfigBuildConfig = (envConfigBuildConfig envCfg)
+                                        { bcConfig = (bcConfig
+                                                            (envConfigBuildConfig
+                                                                envCfg))
+                                            { configBuild = bopts}}})
