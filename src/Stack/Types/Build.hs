@@ -616,6 +616,9 @@ configureOptsNoDir econfig bco deps wanted isLocal package = concat
         [ Map.findWithDefault [] Nothing (configGhcOptions config)
         , Map.findWithDefault [] (Just $ packageName package) (configGhcOptions config)
         , concat [["-fhpc"] | isLocal && toCoverage (boptsTestOpts bopts)]
+        , if (boptsLibProfile bopts || boptsExeProfile bopts)
+             then ["-auto-all","-caf-all"]
+             else []
         , if includeExtraOptions
             then boptsCLIGhcOptions boptsCli
             else []
