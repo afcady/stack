@@ -573,6 +573,7 @@ dotOptsParser = DotOpts
 ghciOptsParser :: Parser GhciOpts
 ghciOptsParser = GhciOpts
              <$> switch (long "no-build" <> help "Don't build before launching GHCi")
+             <*> switch (long "no-interactive" <> help "Run GHC, not GHCi")
              <*> fmap concat (many (argsOption (long "ghci-options" <>
                                        metavar "OPTION" <>
                                        help "Additional options passed to GHCi")))

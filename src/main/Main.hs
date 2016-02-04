@@ -1024,9 +1024,27 @@ execCmd ExecOpts {..} go@GlobalOpts{..} =
                        { boptsTargets = map T.pack targets
                        }
                munlockFile lk -- Unlock before transferring control away.
-               menv <- liftIO $ configEnvOverride config eoEnvSettings
-               exec menv cmd args
+
+               if eoCmd == ExecGhc
+               then
+                   liftIO $ ghciCmd (ghciOpts args) go
+               else do
+                   menv <- liftIO $ configEnvOverride config eoEnvSettings
+                   exec menv cmd args
   where
+    ghciOpts args =
+        let ghciNoBuild            = True
+            ghciNoInteractive      = True
+            ghciArgs               = args
+            ghciGhcCommand         = Nothing
+            ghciNoLoadModules      = True
+            ghciAdditionalPackages = []
+            ghciMainIs             = Nothing
+            ghciLoadLocalDeps      = False
+            ghciSkipIntermediate   = True
+            ghciHidePackages       = True
+            ghciBuildOpts          = defaultBuildOpts
+        in GhciOpts{..}
     execCompiler cmdPrefix args = do
         wc <- getWhichCompiler
         let cmd = cmdPrefix ++ compilerExeName wc

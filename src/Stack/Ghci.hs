@@ -63,6 +63,7 @@ import qualified System.Posix.Files as Posix
 -- | Command-line options for GHC.
 data GhciOpts = GhciOpts
     { ghciNoBuild            :: !Bool
+    , ghciNoInteractive      :: !Bool
     , ghciArgs               :: ![String]
     , ghciGhcCommand         :: !(Maybe FilePath)
     , ghciNoLoadModules      :: !Bool
@@ -122,7 +123,8 @@ ghci opts@GhciOpts{..} = do
             | ghciHidePackages = bioOneWordOpts bio ++ bioPackageFlags bio
             | otherwise = bioOneWordOpts bio
         genOpts = nubOrd (concatMap (concatMap (oneWordOpts . snd) . ghciPkgOpts) pkgs)
-        (omittedOpts, ghcOpts) = partition badForGhci $
+        (omittedOpts, ghcOpts) = (if ghciNoInteractive then ([],) else partition badForGhci) optionGrabBag
+        optionGrabBag =
             concatMap (concatMap (bioOpts . snd) . ghciPkgOpts) pkgs ++
             getUserOptions Nothing ++
             concatMap (getUserOptions . Just . ghciPkgName) pkgs
@@ -155,12 +157,18 @@ ghci opts@GhciOpts{..} = do
                  -- include CWD.
                   "-i" :
                   odir <> pkgopts <> ghciArgs <> extras)
+        execGhc extras = do
+           menv <- liftIO $ configEnvOverride config defaultEnvSettings
+           exec menv
+                (fromMaybe (compilerExeName wc) ghciGhcCommand)
+                ("-i" : pkgopts <> ghciArgs <> extras)
     withSystemTempDir "ghci" $ \tmpDir -> do
         let macrosFile = tmpDir </> $(mkRelFile "cabal_macros.h")
         macrosOpts <- preprocessCabalMacros pkgs macrosFile
-        if ghciNoLoadModules
-            then execGhci macrosOpts
-            else do
+        case ghciNoInteractive of
+          True -> execGhc macrosOpts
+          False | ghciNoLoadModules -> execGhci macrosOpts
+          _ -> do
                 let scriptPath = tmpDir </> $(mkRelFile "ghci-script")
                     fp = toFilePath scriptPath
                     loadModules = ":load " <> unwords (map show thingsToLoad)
@@ -279,7 +287,7 @@ ghciSetup GhciOpts{..} = do
             { boptsTargets = boptsTargets bopts0 ++ map T.pack ghciAdditionalPackages
             }
     -- Try to build, but optimistically launch GHCi anyway if it fails (#1065)
-    unless ghciNoBuild $ do
+    unless (ghciNoBuild || ghciNoInteractive) $ do
         eres <- tryAny $ build (const (return ())) Nothing bopts
         case eres of
             Right () -> return ()

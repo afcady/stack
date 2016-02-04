@@ -113,6 +113,7 @@ getPackageOptsAndTargetFiles pwd pkg = do
 ideGhciOpts :: BuildOpts -> GhciOpts
 ideGhciOpts bopts = GhciOpts
     { ghciNoBuild = False
+    , ghciNoInteractive = False
     , ghciArgs = []
     , ghciGhcCommand = Nothing
     , ghciNoLoadModules = False
