@@ -17,32 +17,33 @@ module Stack.Ghci
     ) where
 
 import           Control.Applicative
-import           Control.Exception.Enclosed (tryAny)
+import           Control.Exception.Enclosed   (tryAny)
 import           Control.Monad.Catch
 import           Control.Monad.IO.Class
 import           Control.Monad.Logger
 import           Control.Monad.RWS.Strict
 import           Control.Monad.State.Strict
 import           Control.Monad.Trans.Resource
-import qualified Data.ByteString.Char8 as S8
+import           Crypto.Hash
+import qualified Data.ByteString.Char8        as S8
 import           Data.Either
 import           Data.Function
 import           Data.List
-import           Data.List.Extra (nubOrd)
-import           Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
+import           Data.List.Extra              (nubOrd)
+import           Data.Map.Strict              (Map)
+import qualified Data.Map.Strict              as M
 import           Data.Maybe
-import           Data.Maybe.Extra (forMaybeM)
-import           Data.Set (Set)
-import qualified Data.Set as S
-import           Data.Text (Text)
-import qualified Data.Text as T
-import           Data.Typeable (Typeable)
-import           Distribution.ModuleName (ModuleName)
-import           Distribution.Text (display)
+import           Data.Maybe.Extra             (forMaybeM)
+import           Data.Set                     (Set)
+import qualified Data.Set                     as S
+import           Data.Text                    (Text)
+import qualified Data.Text                    as T
+import           Data.Typeable                (Typeable)
+import           Distribution.ModuleName      (ModuleName)
+import           Distribution.Text            (display)
 import           Network.HTTP.Client.Conduit
 import           Path
-import           Path.Extra (toFilePathNoTrailingSep)
+import           Path.Extra                   (toFilePathNoTrailingSep)
 import           Path.IO
 import           Prelude
 import           Stack.Build
@@ -54,7 +55,8 @@ import           Stack.Exec
 import           Stack.Package
 import           Stack.Types
 import           Stack.Types.Internal
-import           Text.Read (readMaybe)
+import qualified System.Directory             as D
+import           Text.Read                    (readMaybe)
 
 #ifndef WINDOWS
 import qualified System.Posix.Files as Posix
@@ -161,21 +163,33 @@ ghci opts@GhciOpts{..} = do
            menv <- liftIO $ configEnvOverride config defaultEnvSettings
            exec menv
                 (fromMaybe (compilerExeName wc) ghciGhcCommand)
-                ("-i" : pkgopts <> ghciArgs <> extras)
-    withSystemTempDir "ghci" $ \tmpDir -> do
-        let macrosFile = tmpDir </> $(mkRelFile "cabal_macros.h")
-        macrosOpts <- preprocessCabalMacros pkgs macrosFile
+                ("-i" : odir <> pkgopts <> extras <> ghciArgs)
+
+    withMacrosOpts pkgs $ \macrosOpts ->
         case ghciNoInteractive of
-          True -> execGhc macrosOpts
-          False | ghciNoLoadModules -> execGhci macrosOpts
-          _ -> do
-                let scriptPath = tmpDir </> $(mkRelFile "ghci-script")
-                    fp = toFilePath scriptPath
-                    loadModules = ":load " <> unwords (map show thingsToLoad)
-                    bringIntoScope = ":module + " <> unwords modulesToLoad
-                liftIO (writeFile fp (unlines [loadModules,bringIntoScope]))
-                setScriptPerms fp
-                execGhci (macrosOpts ++ ["-ghci-script=" <> fp])
+            True -> execGhc macrosOpts
+            False | ghciNoLoadModules -> execGhci macrosOpts
+            _ -> withSystemTempDir "ghci" $ \tmpDir -> do
+                     let scriptPath = tmpDir </> $(mkRelFile "ghci-script")
+                         fp = toFilePath scriptPath
+                         loadModules = ":load " <> unwords (map show thingsToLoad)
+                         bringIntoScope = ":module + " <> unwords modulesToLoad
+                     liftIO (writeFile fp (unlines [loadModules,bringIntoScope]))
+                     setScriptPerms fp
+                     execGhci (macrosOpts ++ ["-ghci-script=" <> fp])
+
+withMacrosOpts :: (MonadIO m, MonadThrow m, MonadReader env m, HasConfig env) => [GhciPkgInfo] -> ([FilePath] -> m a) -> m a
+withMacrosOpts pkgs f = do
+  workDir <- getWorkDir
+  mbFile  <- preprocessCabalMacros pkgs (workDir </> $(mkRelDir "odir/.cabal_macros/"))
+  res     <- f $ opts mbFile
+  mapM_ removeFile mbFile
+  return res
+
+  where
+    opts Nothing = []
+    opts (Just macrosFile) = ["-optP-include", "-optP" <> toFilePath macrosFile]
+
 
 -- | Figure out the main-is file to load based on the targets. Sometimes there
 -- is none, sometimes it's unambiguous, sometimes it's
@@ -533,13 +547,23 @@ getExtraLoadDeps loadAllDeps sourceMap targets =
             (_, Just PSUpstream{}) -> return loadAllDeps
             (_, _) -> return False
 
-preprocessCabalMacros :: MonadIO m => [GhciPkgInfo] -> Path Abs File -> m [String]
-preprocessCabalMacros pkgs out = liftIO $ do
+preprocessCabalMacros :: MonadIO m => [GhciPkgInfo] -> Path a Dir -> m (Maybe (Path a File))
+preprocessCabalMacros pkgs outDir = liftIO $ do
     let fps = nubOrd (concatMap (mapMaybe (bioCabalMacros . snd) . ghciPkgOpts) pkgs)
     files <- mapM (S8.readFile . toFilePath) fps
-    if null files then return [] else do
-        S8.writeFile (toFilePath out) $ S8.concat $ map (<> "\n#undef CURRENT_PACKAGE_KEY\n") files
-        return ["-optP-include", "-optP" <> toFilePath out]
+    let content = S8.concat $ map (<> "\n#undef CURRENT_PACKAGE_KEY\n") files
+    if null files
+        then return Nothing
+        else Just <$> writeContentAddressedFile outDir content
+
+writeContentAddressedFile :: Path a Dir -> S8.ByteString -> IO (Path a File)
+writeContentAddressedFile outDir content = do
+    D.createDirectoryIfMissing True (toFilePath outDir)
+    outFile <- (outDir </>) <$> parseRelFile (show (hash content :: Digest SHA1))
+    let tmpFile = toFilePath outFile ++ ".tmp"
+    S8.writeFile tmpFile content
+    D.renameFile tmpFile (toFilePath outFile)
+    return outFile
 
 setScriptPerms :: MonadIO m => FilePath -> m ()
 #ifdef WINDOWS
