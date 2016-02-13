@@ -147,9 +147,10 @@ ghci opts@GhciOpts{..} = do
     let odir =
             [ "-odir=" <> toFilePathNoTrailingSep oiDir
             , "-hidir=" <> toFilePathNoTrailingSep oiDir ]
-    $logInfo
-        ("Configuring GHCi with the following packages: " <>
-         T.intercalate ", " (map (packageNameText . ghciPkgName) pkgs))
+    unless (null pkgs || ghciNoInteractive) $
+        $logInfo
+            ("Configuring GHCi with the following packages: " <>
+             T.intercalate ", " (map (packageNameText . ghciPkgName) pkgs))
     let execGhci extras = do
             menv <- liftIO $ configEnvOverride config defaultEnvSettings
             exec menv
@@ -354,7 +355,8 @@ ghciSetup GhciOpts{..} = do
         forM wanted $
         \(name,(cabalfp,target)) ->
              makeGhciPkgInfo bopts sourceMap installedMap localLibs addPkgs name cabalfp target
-    checkForIssues infos
+    unless (ghciNoInteractive) $
+        checkForIssues infos
     return (realTargets, mainIsTargets, infos)
   where
     hasLocalComp p t =
