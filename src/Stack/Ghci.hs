@@ -179,9 +179,10 @@ ghci opts@GhciOpts{..} = do
                      setScriptPerms fp
                      execGhci (macrosOpts ++ ["-ghci-script=" <> fp])
 
-withMacrosOpts :: (MonadIO m, MonadThrow m, MonadReader env m, HasConfig env) => [GhciPkgInfo] -> ([FilePath] -> m a) -> m a
+withMacrosOpts :: (MonadIO m, MonadThrow m, MonadReader env m, HasConfig env, HasBuildConfig env) =>
+                 [GhciPkgInfo] -> ([FilePath] -> m a) -> m a
 withMacrosOpts pkgs f = do
-  workDir <- getWorkDir
+  workDir <- asks getBuildConfig >>= bcWorkDir
   mbFile  <- preprocessCabalMacros pkgs (workDir </> $(mkRelDir "odir/.cabal_macros/"))
   res     <- f $ opts mbFile
   mapM_ removeFile mbFile
@@ -355,7 +356,7 @@ ghciSetup GhciOpts{..} = do
         forM wanted $
         \(name,(cabalfp,target)) ->
              makeGhciPkgInfo bopts sourceMap installedMap localLibs addPkgs name cabalfp target
-    unless (ghciNoInteractive) $
+    unless ghciNoInteractive $
         checkForIssues infos
     return (realTargets, mainIsTargets, infos)
   where
